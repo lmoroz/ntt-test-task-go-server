@@ -13,7 +13,7 @@ import (
 	"log"
 	"net/http"
 
-	sw "github.com/lmoroz/ntt-test-task/go-server/go"
+	sw "github.com/lmoroz/ntt-test-task-go-server/go"
 )
 
 func main() {
