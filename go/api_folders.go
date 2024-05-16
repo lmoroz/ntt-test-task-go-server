@@ -10,15 +10,98 @@
 package swagger
 
 import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"strings"
 )
 
-func FoldersGetPost(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+func FoldersGetPost(db *sql.DB, pgTableName string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body FoldersGetBody
+
+		err := json.NewDecoder(r.Body).Decode(&body)
+		if checkErrorBadRequest(err, w) {
+			return
+		}
+
+		path := strings.TrimRight(strings.TrimSpace(body.Path), "/")
+
+		var row *sql.Row
+		var folder FolderInfo
+
+		selectParentQuery := fmt.Sprintf("SELECT id FROM %s WHERE parent_id IS NULL LIMIT 1", pgTableName)
+		row = db.QueryRow(selectParentQuery)
+
+		err = row.Scan(&folder.Id)
+		if checkSQLError(err, w) {
+			return
+		}
+		log.Println("folder = ", folder)
+
+		if path != "" {
+			// path = "/LearnDocker/sample"
+			parts := strings.Split(path, "/")
+			if len(parts) > 2 {
+				selectItemQuery := fmt.Sprintf(`
+WITH RECURSIVE file_structure AS (
+  SELECT d.*, 1 AS level FROM %s d WHERE d.parent_id = $1 AND d.name = $2
+  UNION ALL
+  SELECT f.*, fs.level + 1 AS level FROM %s f JOIN file_structure fs ON f.parent_id = fs.id
+)
+SELECT id FROM file_structure WHERE level = $3 AND name = $4 ORDER BY level DESC LIMIT 1;`, pgTableName, pgTableName)
+				row = db.QueryRow(selectItemQuery, folder.Id, parts[1], len(parts)-1, parts[len(parts)-1])
+				log.Println("selectItemQuery = ", selectItemQuery, folder.Id, parts[1], len(parts)-1, parts[len(parts)-1])
+
+			} else {
+				selectItemQuery := fmt.Sprintf("SELECT id FROM %s WHERE parent_id = $1 AND name = $2 LIMIT 1", pgTableName)
+				row = db.QueryRow(selectItemQuery, folder.Id, parts[1])
+				log.Println("selectItemQuery = ", selectItemQuery, folder.Id, parts[1])
+			}
+			err = row.Scan(&folder.Id)
+			if checkSQLError(err, w) {
+				return
+			}
+			log.Println("folder = ", folder)
+		}
+
+		selectChildrenQuery := fmt.Sprintf("SELECT d.*, EXISTS (SELECT 1 FROM %s AS sub WHERE sub.parent_id = d.id) AS has_nested FROM %s as d WHERE parent_id = $1", pgTableName, pgTableName)
+		rows, err := db.Query(selectChildrenQuery, folder.Id)
+		if checkErrorInternal(err, w) {
+			return
+		}
+		log.Println("selectChildrenQuery = ", selectChildrenQuery, folder.Id)
+
+		defer rows.Close()
+
+		var children []FolderInfo
+		for rows.Next() {
+			var child FolderInfo
+			err := rows.Scan(&child.Id, &child.ParentId, &child.Name, &child.Description, &child.HasNested)
+			if checkErrorInternal(err, w) {
+				return
+			}
+			children = append(children, child)
+		}
+		err = rows.Err()
+		if checkErrorInternal(err, w) {
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(children)
+	}
 }
 
-func FoldersTreeGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+func FoldersTreeGet(db *sql.DB, tablename string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Hello World! from FoldersTreeGet")
+		io.WriteString(w, `{"alive": true}`)
+	}
 }

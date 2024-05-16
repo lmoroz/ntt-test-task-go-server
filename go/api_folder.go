@@ -10,10 +10,31 @@
 package swagger
 
 import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"github.com/gorilla/mux"
 	"net/http"
 )
 
-func FolderIdGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+func FolderIdGet(db *sql.DB, pgTableName string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+		vars := mux.Vars(r)
+		id := vars["id"]
+
+		selectQuery := fmt.Sprintf("SELECT d.*, EXISTS (SELECT 1 FROM %s AS sub WHERE sub.parent_id = d.id) AS has_nested FROM %s as d WHERE ID = $1 LIMIT 1", pgTableName, pgTableName)
+		row := db.QueryRow(selectQuery, id)
+
+		var folder FolderInfo
+		err := row.Scan(&folder.Id, &folder.ParentId, &folder.Name, &folder.Description, &folder.HasNested)
+
+		if checkSQLError(err, w) {
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(folder)
+	}
 }

@@ -10,27 +10,26 @@
 package swagger
 
 import (
+	"database/sql"
 	"fmt"
-	"net/http"
-	"strings"
-
 	"github.com/gorilla/mux"
+	"net/http"
 )
 
 type Route struct {
 	Name        string
 	Method      string
 	Pattern     string
-	HandlerFunc http.HandlerFunc
+	HandlerFunc func(db *sql.DB, tablename string) http.HandlerFunc
 }
 
 type Routes []Route
 
-func NewRouter() *mux.Router {
+func NewRouter(db *sql.DB, pgTableName string) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 	for _, route := range routes {
 		var handler http.Handler
-		handler = route.HandlerFunc
+		handler = route.HandlerFunc(db, pgTableName)
 		handler = Logger(handler, route.Name)
 
 		router.
@@ -43,8 +42,10 @@ func NewRouter() *mux.Router {
 	return router
 }
 
-func Index(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello World!")
+func Index(db *sql.DB, pgTableName string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Hello from HTT test task go API webserver!")
+	}
 }
 
 var routes = Routes{
@@ -57,21 +58,21 @@ var routes = Routes{
 
 	Route{
 		"FolderIdGet",
-		strings.ToUpper("Get"),
+		"GET",
 		"/api/v3/folder/{id}",
 		FolderIdGet,
 	},
 
 	Route{
 		"FoldersGetPost",
-		strings.ToUpper("Post"),
+		"POST",
 		"/api/v3/folders/get",
 		FoldersGetPost,
 	},
 
 	Route{
 		"FoldersTreeGet",
-		strings.ToUpper("Get"),
+		"GET",
 		"/api/v3/folders/tree",
 		FoldersTreeGet,
 	},

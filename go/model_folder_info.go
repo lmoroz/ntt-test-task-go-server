@@ -10,12 +10,9 @@
 package swagger
 
 type FolderInfo struct {
-
-	Id int64 `json:"id"`
-
-	ParentId int64 `json:"parent_id"`
-
-	Name string `json:"name"`
-
+	Id          int    `json:"id"`
+	ParentId    *int   `json:"parent_id"`
+	Name        string `json:"name"`
 	Description string `json:"description"`
+	HasNested   string `json:"has_nested"`
 }

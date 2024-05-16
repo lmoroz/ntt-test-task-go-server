@@ -10,16 +10,53 @@
 package main
 
 import (
+	"fmt"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	sw "github.com/lmoroz/ntt-test-task-go-server/go"
 	"log"
 	"net/http"
+	"os"
+)
 
-	sw "github.com/lmoroz/ntt-test-task-go-server/go"
+const (
+	pgHost       = "localhost"
+	pgPort       = 5432
+	pgUser       = "pguser"
+	pgPassword   = "1234567"
+	pgDbName     = "pgdb"
+	pgTableName  = "directories"
+	jsonFilename = "data.json"
 )
 
 func main() {
+	err := godotenv.Load()
+	sw.CheckErrorFatal(err, "Ошибка загрузки .env файла")
+	pgHost := getEnvVariable("PG_HOST")
+	pgPort := getEnvVariable("PG_PORT")
+	pgUser := getEnvVariable("PG_USER")
+	pgPassword := getEnvVariable("PG_PASSWORD")
+	pgDbName := getEnvVariable("PG_DB")
+	pgTableName := getEnvVariable("PG_TABLE")
+	jsonFilename := getEnvVariable("DATA_FILE_NAME")
+
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", pgHost, pgPort, pgUser, pgPassword, pgDbName)
+	db := sw.DBConnect(connStr)
+
+	defer db.Close()
+
+	sw.FillDb(db, pgTableName, jsonFilename)
+
+	router := sw.NewRouter(db, pgTableName)
+
 	log.Printf("Server started")
-
-	router := sw.NewRouter()
-
 	log.Fatal(http.ListenAndServe(":8080", router))
+}
+
+func getEnvVariable(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalf("переменная окружения %s не установлена или пуста", key)
+	}
+	return value
 }
