@@ -2,10 +2,11 @@ FROM golang:1.22 AS build
 WORKDIR /go/src
 COPY go ./go
 COPY main.go .
-
+COPY go.mod .
 
 ENV CGO_ENABLED=0
-RUN go get -d -v ./...
+RUN go mod tidy
+RUN go mod download
 
 RUN go build -a -installsuffix cgo -o swagger .
 

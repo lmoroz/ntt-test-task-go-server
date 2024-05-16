@@ -1,0 +1,13 @@
+services:
+  ntt-test-task-go-server:
+    container_name: ntt-test-task-go-server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    environment:
+      - SERVER_PORT=${SERVER_PORT}
+    volumes:
+      - ./.env:/.env
+      - ./data.json:/data.json
