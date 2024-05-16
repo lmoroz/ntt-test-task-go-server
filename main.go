@@ -32,6 +32,7 @@ const (
 func main() {
 	err := godotenv.Load()
 	sw.CheckErrorFatal(err, "Ошибка загрузки .env файла")
+
 	pgHost := getEnvVariable("PG_HOST")
 	pgPort := getEnvVariable("PG_PORT")
 	pgUser := getEnvVariable("PG_USER")
@@ -40,7 +41,7 @@ func main() {
 	pgTableName := getEnvVariable("PG_TABLE")
 	jsonFilename := getEnvVariable("DATA_FILE_NAME")
 
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", pgHost, pgPort, pgUser, pgPassword, pgDbName)
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", pgHost, pgPort, pgUser, pgPassword, pgDbName)
 	db := sw.DBConnect(connStr)
 
 	defer db.Close()
@@ -56,7 +57,7 @@ func main() {
 func getEnvVariable(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
-		log.Fatalf("переменная окружения %s не установлена или пуста", key)
+		log.Fatalf("Переменная окружения %s не установлена или пуста", key)
 	}
 	return value
 }
