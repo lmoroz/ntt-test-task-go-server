@@ -19,19 +19,9 @@ import (
 	"os"
 )
 
-const (
-	pgHost       = "localhost"
-	pgPort       = 5432
-	pgUser       = "pguser"
-	pgPassword   = "1234567"
-	pgDbName     = "pgdb"
-	pgTableName  = "directories"
-	jsonFilename = "data.json"
-)
-
 func main() {
 	err := godotenv.Load()
-	sw.CheckErrorFatal(err, "Ошибка загрузки .env файла")
+	sw.CheckErrorFatal(err, "Error loading .env. Is it in place?")
 
 	pgHost := getEnvVariable("PG_HOST")
 	pgPort := getEnvVariable("PG_PORT")
@@ -58,7 +48,7 @@ func main() {
 func getEnvVariable(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
-		log.Fatalf("Переменная окружения %s не установлена или пуста", key)
+		log.Fatalf("Environment variable %s is not set or is empty", key)
 	}
 	return value
 }

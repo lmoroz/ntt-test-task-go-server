@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -31,16 +30,15 @@ func FoldersGetPost(db *sql.DB, pgTableName string) http.HandlerFunc {
 		path := strings.TrimRight(strings.TrimSpace(body.Path), "/")
 
 		var row *sql.Row
-		var folder FolderInfo
+		var folderId int
 
 		selectParentQuery := fmt.Sprintf("SELECT id FROM %s WHERE parent_id IS NULL LIMIT 1", pgTableName)
 		row = db.QueryRow(selectParentQuery)
 
-		err = row.Scan(&folder.Id)
+		err = row.Scan(&folderId)
 		if checkSQLError(err, w) {
 			return
 		}
-		log.Println("folder = ", folder)
 
 		if path != "" {
 			// path = "/LearnDocker/sample"
@@ -53,27 +51,23 @@ WITH RECURSIVE file_structure AS (
   SELECT f.*, fs.level + 1 AS level FROM %s f JOIN file_structure fs ON f.parent_id = fs.id
 )
 SELECT id FROM file_structure WHERE level = $3 AND name = $4 ORDER BY level DESC LIMIT 1;`, pgTableName, pgTableName)
-				row = db.QueryRow(selectItemQuery, folder.Id, parts[1], len(parts)-1, parts[len(parts)-1])
-				log.Println("selectItemQuery = ", selectItemQuery, folder.Id, parts[1], len(parts)-1, parts[len(parts)-1])
+				row = db.QueryRow(selectItemQuery, folderId, parts[1], len(parts)-1, parts[len(parts)-1])
 
 			} else {
 				selectItemQuery := fmt.Sprintf("SELECT id FROM %s WHERE parent_id = $1 AND name = $2 LIMIT 1", pgTableName)
-				row = db.QueryRow(selectItemQuery, folder.Id, parts[1])
-				log.Println("selectItemQuery = ", selectItemQuery, folder.Id, parts[1])
+				row = db.QueryRow(selectItemQuery, folderId, parts[1])
 			}
-			err = row.Scan(&folder.Id)
+			err = row.Scan(&folderId)
 			if checkSQLError(err, w) {
 				return
 			}
-			log.Println("folder = ", folder)
 		}
 
 		selectChildrenQuery := fmt.Sprintf("SELECT d.*, EXISTS (SELECT 1 FROM %s AS sub WHERE sub.parent_id = d.id) AS has_nested FROM %s as d WHERE parent_id = $1", pgTableName, pgTableName)
-		rows, err := db.Query(selectChildrenQuery, folder.Id)
+		rows, err := db.Query(selectChildrenQuery, folderId)
 		if checkErrorInternal(err, w) {
 			return
 		}
-		log.Println("selectChildrenQuery = ", selectChildrenQuery, folder.Id)
 
 		defer rows.Close()
 
