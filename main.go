@@ -40,6 +40,7 @@ func main() {
 	pgDbName := getEnvVariable("PG_DB")
 	pgTableName := getEnvVariable("PG_TABLE")
 	jsonFilename := getEnvVariable("DATA_FILE_NAME")
+	port := getEnvVariable("SERVER_PORT")
 
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", pgHost, pgPort, pgUser, pgPassword, pgDbName)
 	db := sw.DBConnect(connStr)
@@ -51,7 +52,7 @@ func main() {
 	router := sw.NewRouter(db, pgTableName)
 
 	log.Printf("Server started")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	log.Fatal(http.ListenAndServe(":"+port, router))
 }
 
 func getEnvVariable(key string) string {
