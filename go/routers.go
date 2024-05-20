@@ -25,11 +25,27 @@ type Route struct {
 
 type Routes []Route
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func NewRouter(db *sql.DB, pgTableName string) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
+
+	router.Methods("OPTIONS").HandlerFunc(handlePreflight)
+
 	for _, route := range routes {
 		var handler http.Handler
 		handler = route.HandlerFunc(db, pgTableName)
+		handler = corsMiddleware(handler)
 		handler = Logger(handler, route.Name)
 
 		router.
@@ -48,6 +64,18 @@ func Index(db *sql.DB, pgTableName string) http.HandlerFunc {
 	}
 }
 
+func handlePreflight(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	} else {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	}
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 var routes = Routes{
 	Route{
 		"Index",
@@ -64,16 +92,16 @@ var routes = Routes{
 	},
 
 	Route{
+		"FolderGetPost",
+		"POST",
+		"/api/v3/folder/get",
+		FolderGetPost,
+	},
+
+	Route{
 		"FoldersGetPost",
 		"POST",
 		"/api/v3/folders/get",
 		FoldersGetPost,
-	},
-
-	Route{
-		"FoldersTreeGet",
-		"GET",
-		"/api/v3/folders/tree",
-		FoldersTreeGet,
 	},
 }

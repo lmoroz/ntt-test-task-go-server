@@ -14,5 +14,7 @@ type FolderInfo struct {
 	ParentId    *int   `json:"parent_id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	HasNested   string `json:"has_nested"`
+	HasNested   bool   `json:"has_nested"`
+	Path        string `json:"path"`
+	IsOpen      bool   `json:"is_open"`
 }

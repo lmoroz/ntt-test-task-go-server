@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"net/http"
+	"strings"
 )
 
 func FolderIdGet(db *sql.DB, pgTableName string) http.HandlerFunc {
@@ -24,16 +25,79 @@ func FolderIdGet(db *sql.DB, pgTableName string) http.HandlerFunc {
 		vars := mux.Vars(r)
 		id := vars["id"]
 
-		selectQuery := fmt.Sprintf("SELECT d.*, EXISTS (SELECT 1 FROM %s AS sub WHERE sub.parent_id = d.id) AS has_nested FROM %s as d WHERE ID = $1 LIMIT 1", pgTableName, pgTableName)
+		selectQuery := fmt.Sprintf(`
+SELECT d.*, EXISTS (SELECT 1 FROM %s AS sub WHERE sub.parent_id = d.id) AS has_nested 
+FROM %s as d WHERE ID = $1 LIMIT 1`, pgTableName, pgTableName)
 		row := db.QueryRow(selectQuery, id)
 
 		var folder FolderInfo
 		err := row.Scan(&folder.Id, &folder.ParentId, &folder.Name, &folder.Description, &folder.HasNested)
 
-		if checkSQLError(err, w) {
+		if checkSQLError(err, w, "Cannot select folder data") {
 			return
 		}
 
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(folder)
+	}
+}
+func FolderGetPost(db *sql.DB, pgTableName string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		var body FoldersGetBody
+
+		err := json.NewDecoder(r.Body).Decode(&body)
+		if checkErrorBadRequest(err, w) {
+			return
+		}
+
+
+		path := strings.TrimRight(strings.TrimSpace(body.Path), "/")
+
+		var row *sql.Row
+		var parentFolder FolderInfo
+		var folder FolderInfo
+
+		selectParentQuery := fmt.Sprintf(`
+SELECT d.*, EXISTS (SELECT 1 FROM %s sub WHERE sub.parent_id = d.id) AS has_nested 
+FROM %s d WHERE parent_id IS NULL LIMIT 1`, pgTableName, pgTableName)
+		row = db.QueryRow(selectParentQuery)
+
+		err = row.Scan(&parentFolder.Id, &parentFolder.ParentId, &parentFolder.Name, &parentFolder.Description, &parentFolder.HasNested)
+		if checkSQLError(err, w, "Cannot select parent folder") {
+			return
+		}
+
+		if path != "" {
+			parts := strings.Split(path, "/")
+			if len(parts) > 2 {
+				selectItemQuery := fmt.Sprintf(`
+WITH RECURSIVE file_structure AS (
+  SELECT d.*, '/' || d.name as path FROM %s d WHERE d.parent_id = $1 AND d.name = $2
+  UNION ALL
+  SELECT f.*, fs.path || '/' || f.name as path FROM %s f JOIN file_structure fs ON f.parent_id = fs.id
+)
+SELECT fs.id, fs.parent_id, fs.name, fs.description, EXISTS (SELECT 1 FROM %s sub WHERE sub.parent_id = fs.id) AS has_nested 
+FROM file_structure fs WHERE path = $3 LIMIT 1;`, pgTableName, pgTableName, pgTableName)
+				row = db.QueryRow(selectItemQuery, parentFolder.Id, parts[1], path)
+
+			} else {
+				selectItemQuery := fmt.Sprintf(`
+SELECT d.*, EXISTS (SELECT 1 FROM %s AS sub WHERE sub.parent_id = d.id) AS has_nested 
+FROM %s d WHERE parent_id = $1 AND name = $2 LIMIT 1`, pgTableName, pgTableName)
+				row = db.QueryRow(selectItemQuery, parentFolder.Id, parts[1])
+			}
+			err = row.Scan(&folder.Id, &folder.ParentId, &folder.Name, &folder.Description, &folder.HasNested)
+			if checkSQLError(err, w, "Cannot select folder data") {
+				return
+			}
+		} else {
+			folder = parentFolder
+		}
+		folder.Path = path;
+		folder.IsOpen = false;
+
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(folder)
 	}
